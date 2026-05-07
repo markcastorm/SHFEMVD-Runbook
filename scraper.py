@@ -212,152 +212,257 @@ def _click_daily_ranking(driver):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Step 2: Find a date with data on the calendar
+# Step 2: Calendar helpers & find a date with data
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _find_date_with_data(driver):
+# Month abbreviation ↔ number (matches the date-picker panel labels)
+_MONTH_ABBRS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+
+def _navigate_to_month(driver, month_abbr):
     """
-    Scan the calendar for dates that have data (indicated by the 'budge' class
-    marker inside the calendar day cells). Clicks on the most recent date
-    that has data. Returns the date string (YYYY-MM-DD) found.
+    Switch the calendar to a different month via the date-picker dropdown
+    (.home_calendar_i).  The calendar ‹/› buttons are unreliable ("element
+    not interactable"), so we use the month-picker panel instead.
     """
     from selenium.webdriver.common.by import By
     from selenium.webdriver.support.ui import WebDriverWait
     from selenium.webdriver.support import expected_conditions as EC
 
+    logger.info(f'Navigating calendar to month: {month_abbr}')
+
+    # Open the date-picker (native click triggers the Vue event binding)
+    picker_input = driver.find_element(
+        By.CSS_SELECTOR, '.home_calendar_i .el-input__inner'
+    )
+    driver.execute_script(
+        'arguments[0].scrollIntoView({block:"center"});', picker_input
+    )
+    _human_delay()
+
+    try:
+        picker_input.click()
+    except Exception:
+        try:
+            icon = driver.find_element(
+                By.CSS_SELECTOR, '.home_calendar_i .el-icon-date'
+            )
+            icon.click()
+        except Exception:
+            wrapper = driver.find_element(By.CSS_SELECTOR, '.home_calendar_i')
+            driver.execute_script('arguments[0].click();', wrapper)
+
+    _human_delay(1.5, 2.0)
+
+    # Wait for the picker panel to become visible
+    try:
+        WebDriverWait(driver, 10).until(
+            EC.visibility_of_element_located(
+                (By.CSS_SELECTOR, '.el-picker-panel')
+            )
+        )
+    except Exception:
+        # Retry with focus + click
+        driver.execute_script(
+            'arguments[0].focus(); arguments[0].click();', picker_input
+        )
+        _human_delay(1.5, 2.0)
+
+    _human_delay(0.5, 1.0)
+
+    # Click the target month cell
+    month_cells = driver.find_elements(
+        By.CSS_SELECTOR, '.el-month-table .cell'
+    )
+    for cell in month_cells:
+        if cell.text.strip() == month_abbr:
+            driver.execute_script('arguments[0].click();', cell)
+            logger.info(f'Selected month: {month_abbr}')
+            _human_delay(1.5, 2.5)
+            return
+
+    found = [c.text.strip() for c in month_cells]
+    raise RuntimeError(
+        f'Month "{month_abbr}" not found in picker. Available: {found}'
+    )
+
+
+def _scan_calendar_dates(driver):
+    """
+    Scan the current calendar view for days with the 'budge' red-dot marker.
+    Returns a list of (day_num, cell_element) for 'current'-month cells only.
+    """
+    from selenium.webdriver.common.by import By
+
+    results = []
+    cells = driver.find_elements(
+        By.CSS_SELECTOR, 'td.current .el-calendar-day'
+    )
+    for cell in cells:
+        if cell.find_elements(By.CSS_SELECTOR, '.budge'):
+            p_tag = cell.find_element(By.TAG_NAME, 'p')
+            day_text = p_tag.text.strip().split('\n')[0].strip()
+            try:
+                results.append((int(day_text), cell))
+            except ValueError:
+                continue
+    return results
+
+
+def _click_day(driver, target_day, day_cells):
+    """
+    Click a specific day from a pre-scanned list of (day_num, cell) tuples.
+    Returns True if clicked, False if the day wasn't in the list.
+    """
+    for day_num, cell in day_cells:
+        if day_num == target_day:
+            driver.execute_script(
+                'arguments[0].scrollIntoView({block:"center"});', cell
+            )
+            _human_delay()
+            driver.execute_script('arguments[0].click();', cell)
+            logger.info(f'Clicked calendar day {target_day}')
+            return True
+    return False
+
+
+def _wait_for_table_data(driver, timeout=None):
+    """
+    Wait for "Contract Code" to appear in the page source (= data loaded).
+    Returns True on success, False on timeout (no data for that date).
+    Gives the page 2 s to react before the first check.
+    """
+    timeout = timeout or config.WAIT_TIMEOUT
+
+    logger.info('Waiting for table data to load...')
+    time.sleep(2)
+
+    for attempt in range(timeout):
+        time.sleep(1.0)
+        if 'Contract Code' in driver.page_source:
+            logger.info(f'Table data detected (after {attempt + 3}s)')
+            return True
+        if attempt % 10 == 9:
+            logger.info(f'Still waiting for data... ({attempt + 3}s)')
+
+    logger.info(f'No data loaded within {timeout + 2}s')
+    return False
+
+
+def _find_date_with_data(driver):
+    """
+    Find a date with downloadable data on the calendar.
+
+    Behaviour depends on config.TARGET_DATE:
+      • If set (e.g. '2026-04-30') → navigate to that exact month, click that
+        day, and wait for data.  Raises if data doesn't load.
+      • If None → automatically search for the latest unscraped date.
+        Starts from the current month and works backwards (up to 3 months)
+        using the date-picker to switch months.  Skips dates that are already
+        in scraped_dates.json.  If a clicked date's data doesn't load within
+        the timeout, logs it and tries the next candidate.
+
+    Returns the date string 'YYYY-MM-DD' on success, or None when every
+    available date has already been scraped.
+    """
+    from selenium.webdriver.common.by import By
+    import datetime as dt
+
     logger.info('Scanning calendar for dates with data...')
 
-    # Wait for calendar to be visible
+    # Wait for calendar widget
     _wait_for(driver, By.CSS_SELECTOR, '.el-calendar',
               description='Calendar widget')
     _human_delay(2.0, 3.0)
 
-    # Get the current month/year from the calendar title.
-    # The title may take a moment to render, so poll until non-empty.
-    import datetime as dt
+    today = dt.date.today()
 
-    calendar_title = ''
-    for _ in range(10):
-        title_el = driver.find_element(By.CSS_SELECTOR, '.el-calendar__title')
-        calendar_title = title_el.text.strip()
-        if calendar_title:
-            break
-        # Try getting text via JS as fallback
-        calendar_title = (driver.execute_script(
-            'return arguments[0].textContent;', title_el
-        ) or '').strip()
-        if calendar_title:
-            break
-        time.sleep(0.5)
+    # ── Specific date mode ────────────────────────────────────────────────
+    if config.TARGET_DATE is not None:
+        target = dt.datetime.strptime(config.TARGET_DATE, '%Y-%m-%d').date()
+        target_month_abbr = _MONTH_ABBRS[target.month - 1]
 
-    # If still empty, derive from today's date as fallback
-    if not calendar_title:
-        now = dt.datetime.now()
-        calendar_title = now.strftime('%B %Y')
-        logger.warning(f'Calendar title empty — using current month: {calendar_title}')
+        # Navigate to the target month (always navigate to be safe)
+        _navigate_to_month(driver, target_month_abbr)
 
-    logger.info(f'Calendar showing: {calendar_title}')
+        # Scan and click the target day
+        day_cells = _scan_calendar_dates(driver)
+        day_nums = [d for d, _ in day_cells]
+        logger.info(f'Dates with data in {target_month_abbr}: {day_nums}')
 
-    # Parse the month/year from the title right away
-    parsed_month = dt.datetime.strptime(calendar_title, '%B %Y')
+        if not _click_day(driver, target.day, day_cells):
+            # Day exists on calendar but has no budge marker — click anyway
+            logger.warning(
+                f'Day {target.day} has no budge marker — clicking anyway'
+            )
+            all_cells = driver.find_elements(
+                By.CSS_SELECTOR, 'td.current .el-calendar-day'
+            )
+            for cell in all_cells:
+                p_tag = cell.find_element(By.TAG_NAME, 'p')
+                txt = p_tag.text.strip().split('\n')[0].strip()
+                try:
+                    if int(txt) == target.day:
+                        driver.execute_script(
+                            'arguments[0].scrollIntoView({block:"center"});',
+                            cell,
+                        )
+                        _human_delay()
+                        driver.execute_script('arguments[0].click();', cell)
+                        logger.info(f'Clicked day {target.day} (no budge)')
+                        break
+                except ValueError:
+                    continue
 
-    # Find all "current" month day cells (not prev/next month)
-    day_cells = driver.find_elements(
-        By.CSS_SELECTOR, 'td.current .el-calendar-day'
-    )
+        if not _wait_for_table_data(driver):
+            raise RuntimeError(
+                f'No data loaded for target date {config.TARGET_DATE}'
+            )
 
-    # Determine today's day number for filtering out future dates
-    today = dt.datetime.now()
-    today_day = today.day
-    # Only filter by day if we're looking at the current month
-    is_current_month = (
-        parsed_month.month == today.month and parsed_month.year == today.year
-    )
+        return config.TARGET_DATE
 
-    # Collect days that have the "budge" marker (red dot = data available)
-    days_with_data = []
-    for cell in day_cells:
-        budge_markers = cell.find_elements(By.CSS_SELECTOR, '.budge')
-        if budge_markers:
-            # Extract the day number from the <p> tag
-            p_tag = cell.find_element(By.TAG_NAME, 'p')
-            day_text = p_tag.text.strip().split('\n')[0].strip()
-            try:
-                day_num = int(day_text)
-            except ValueError:
-                continue
+    # ── Auto mode: check current month for the latest unscraped date ─────
+    day_cells = _scan_calendar_dates(driver)
+    day_nums = sorted([d for d, _ in day_cells], reverse=True)
+    logger.info(f'Dates with data on calendar: {day_nums}')
 
-            # Skip future dates (budge can appear on scheduled future dates)
-            if is_current_month and day_num > today_day:
-                logger.debug(f'Skipping future date: day {day_num}')
-                continue
-
-            days_with_data.append((day_num, cell))
-
-    if not days_with_data:
-        raise RuntimeError('No dates with data found on the calendar')
-
-    # Sort by day number descending and pick the most recent
-    days_with_data.sort(key=lambda x: x[0], reverse=True)
-    target_day, target_cell = days_with_data[0]
-
-    logger.info(f'Found {len(days_with_data)} dates with data. '
-                f'Selecting most recent: day {target_day}')
-
-    # Build the full date from parsed month + selected day
-    data_date = parsed_month.replace(day=target_day)
-    date_str = data_date.strftime('%Y-%m-%d')
-    logger.info(f'Target date: {date_str}')
-
-    # Check if already scraped
-    if config.is_date_already_scraped(date_str):
-        logger.info(f'Date {date_str} already scraped. Skipping.')
+    if not day_nums:
+        logger.info('No dates with data found on calendar — '
+                     'no new data available yet')
         return None
 
-    # Check if the target day is already selected (e.g. today).
-    # If so, clicking "Daily Ranking" already triggered data loading for it —
-    # we just need to wait. If NOT selected, click it to trigger loading.
-    target_td = target_cell.find_element(By.XPATH, './ancestor::td')
-    td_classes = target_td.get_attribute('class') or ''
-    already_selected = 'is-selected' in td_classes
+    # Filter out future dates
+    day_nums = [d for d in day_nums if d <= today.day]
 
-    if already_selected:
-        logger.info(f'Day {target_day} is already selected — '
-                     f'data is loading from the Daily Ranking tab click')
-    else:
-        # Use JS click which is more reliable than Selenium .click()
-        driver.execute_script(
-            'arguments[0].scrollIntoView({block:"center"});', target_cell
-        )
-        _human_delay()
-        driver.execute_script('arguments[0].click();', target_cell)
-        logger.info(f'Clicked calendar day {target_day}')
+    # Try each day, most recent first
+    for day_num in day_nums:
+        date_str = dt.date(today.year, today.month, day_num).isoformat()
 
-    # Wait for data to actually load. The site is heavily dynamic (Vue.js) —
-    # after clicking "Daily Ranking", a spinner appears then tables render.
-    # The POSITIVE signal is "Contract Code" appearing in the page source,
-    # which means at least the first table section has rendered.
-    logger.info('Waiting for table data to load...')
-    data_loaded = False
-    for attempt in range(config.WAIT_TIMEOUT):
-        time.sleep(1.0)
-        page_source = driver.page_source
+        if config.is_date_already_scraped(date_str):
+            logger.info(f'{date_str} already scraped — skipping')
+            continue
 
-        # "Contract Code" appears in every loaded table section
-        if 'Contract Code' in page_source:
-            data_loaded = True
-            logger.info(f'Table data detected on page (after {attempt+1}s)')
-            break
+        # Re-scan cells (DOM may refresh after previous attempts)
+        day_cells = _scan_calendar_dates(driver)
+        if not _click_day(driver, day_num, day_cells):
+            logger.warning(f'Could not click day {day_num} — skipping')
+            continue
 
-        if attempt % 10 == 9:
-            logger.info(f'Still waiting for data... ({attempt+1}s)')
+        if _wait_for_table_data(driver):
+            logger.info(f'Data loaded for {date_str}')
+            return date_str
 
-    if not data_loaded:
-        raise RuntimeError(
-            f'Table data did not load within {config.WAIT_TIMEOUT}s'
+        # Data didn't load — budge marker present but data not ready yet
+        logger.info(
+            f'{date_str}: no data loaded (data not available yet) — '
+            f'trying next date'
         )
 
-    return date_str
+    # All dates with markers are either already scraped or have no data yet
+    logger.info('No new data available yet — all dates already scraped '
+                'or data not published')
+    return None
 
 
 # ─────────────────────────────────────────────────────────────────────────────

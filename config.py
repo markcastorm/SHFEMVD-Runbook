@@ -45,6 +45,11 @@ RETRY_DELAY          = 3.0
 # Set to True to skip the duplicate-date check and force a fresh scrape
 BYPASS_DATE_CHECK = False
 
+# ── Target date ───────────────────────────────────────────────────────────────
+# Set to a specific date string (e.g. '2026-04-30') to scrape that exact date,
+# or None to automatically find the latest unscraped date with data.
+TARGET_DATE = None
+
 # ── Output filenames ─────────────────────────────────────────────────────────
 RAW_EXCEL_NAME    = 'Daily_Ranking.xlsx'
 RAW_CSV_NAME      = 'Daily_Ranking.csv'
