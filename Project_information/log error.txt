@@ -1,0 +1,93 @@
+MarkCastro@DESKTOP-UP05FK7 MINGW64 /d/Projects/SIMBA-RUNBOOKS/SHFEMVD Runbook
+$ python main.py 
+2026-05-06 15:23:00 [INFO] === SHFEMVD pipeline started ===
+2026-05-06 15:23:00 [INFO] Timestamp: 20260506_152259
+2026-05-06 15:23:00 [INFO] Source:    https://www.shfe.com.cn/eng/reports/StatisticalData/DailyData/
+2026-05-06 15:23:00 [INFO] Master:   D:\Projects\SIMBA-RUNBOOKS\SHFEMVD Runbook\Master_data\MASTER_SHFEMVD_DATA - Sheet73.csv
+2026-05-06 15:23:00 [INFO] Step 1: Scraping SHFE Daily Ranking...
+
+DevTools listening on ws://127.0.0.1:57224/devtools/browser/ae06d511-982c-4800-b72e-84323c63559f
+2026-05-06 15:23:02 [INFO] Selenium stealth applied
+2026-05-06 15:23:02 [INFO] Chrome driver ready -- download dir: D:\Projects\SIMBA-RUNBOOKS\SHFEMVD Runbook\downloads\20260506_152259
+2026-05-06 15:23:02 [INFO] Loading SHFE page: https://www.shfe.com.cn/eng/reports/StatisticalData/DailyData/
+[19072:18004:0506/152308.033:ERROR:google_apis\gcm\engine\registration_request.cc:291] Registration response error message: PHONE_REGISTRATION_ERROR
+[19072:18004:0506/152308.034:ERROR:google_apis\gcm\engine\registration_request.cc:291] Registration response error message: PHONE_REGISTRATION_ERROR
+[19072:18004:0506/152308.034:ERROR:google_apis\gcm\engine\registration_request.cc:291] Registration response error message: PHONE_REGISTRATION_ERROR
+[19072:18004:0506/152308.227:ERROR:google_apis\gcm\engine\mcs_client.cc:700]   Error code: 401  Error message: Authentication Failed: wrong_secret
+[19072:18004:0506/152308.228:ERROR:google_apis\gcm\engine\mcs_client.cc:702] Failed to log in to GCM, resetting connection.
+Created TensorFlow Lite XNNPACK delegate for CPU.
+2026-05-06 15:23:24 [INFO] Clicked "Daily Ranking" tab
+2026-05-06 15:23:27 [INFO] Scanning calendar for dates with data...
+[19072:18004:0506/152328.614:ERROR:google_apis\gcm\engine\registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT
+2026-05-06 15:23:30 [INFO] Calendar showing: May 2026
+2026-05-06 15:23:31 [INFO] Found 1 dates with data. Selecting most recent: day 6
+2026-05-06 15:23:31 [INFO] Target date: 2026-05-06
+2026-05-06 15:23:31 [INFO] Day 6 is already selected — clicking a neighbour first to force reload
+2026-05-06 15:23:34 [INFO] Browser closed
+2026-05-06 15:23:34 [ERROR] Pipeline failed: Message: element not interactable
+  (Session info: chrome=147.0.7727.138)
+Stacktrace:
+        chromedriver!GetHandleVerifier [0x7ff68cbda8e5+14e45]
+        chromedriver!GetHandleVerifier [0x7ff68cbda950+14eb0]
+        chromedriver!(No symbol) [0x7ff68c94d4d6]
+        chromedriver!(No symbol) [0x7ff68c9a82a4]
+        chromedriver!(No symbol) [0x7ff68c99b1c6]
+        chromedriver!(No symbol) [0x7ff68c9d002a]
+        chromedriver!(No symbol) [0x7ff68c99aa46]
+        chromedriver!(No symbol) [0x7ff68c9f483b]
+        chromedriver!(No symbol) [0x7ff68c9990e8]
+        chromedriver!(No symbol) [0x7ff68c999fc3]
+        chromedriver!GetHandleVerifier [0x7ff68cef0149+32a6a9]
+        chromedriver!GetHandleVerifier [0x7ff68ceea715+324c75]
+        chromedriver!GetHandleVerifier [0x7ff68cf0c012+346572]
+        chromedriver!GetHandleVerifier [0x7ff68cbf7cb5+32215]
+        chromedriver!GetHandleVerifier [0x7ff68cc0087c+3addc]
+        chromedriver!GetHandleVerifier [0x7ff68cbe40e4+1e644]
+        chromedriver!GetHandleVerifier [0x7ff68cbe4296+1e7f6]
+        chromedriver!GetHandleVerifier [0x7ff68cbc8737+2c97]
+        KERNEL32!BaseThreadInitThunk [0x7ffe478553e0+10]
+        ntdll!RtlUserThreadStart [0x7ffe48da485b+2b]
+Traceback (most recent call last):
+  File "D:\Projects\SIMBA-RUNBOOKS\SHFEMVD Runbook\orchestrator.py", line 37, in main
+    csv_path, date_str = download()
+                         ^^^^^^^^^^
+  File "D:\Projects\SIMBA-RUNBOOKS\SHFEMVD Runbook\scraper.py", line 638, in download
+    date_str = _find_date_with_data(driver)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Projects\SIMBA-RUNBOOKS\SHFEMVD Runbook\scraper.py", line 349, in _find_date_with_data
+    cell.click()
+  File "C:\Users\Mark Castro\AppData\Local\Programs\Python\Python311\Lib\site-packages\selenium\webdriver\remote\webelement.py", line 94, in click
+    self._execute(Command.CLICK_ELEMENT)
+  File "C:\Users\Mark Castro\AppData\Local\Programs\Python\Python311\Lib\site-packages\selenium\webdriver\remote\webelement.py", line 395, in _execute
+    return self._parent.execute(command, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Mark Castro\AppData\Local\Programs\Python\Python311\Lib\site-packages\selenium\webdriver\remote\webdriver.py", line 384, in execute
+    self.error_handler.check_response(response)
+  File "C:\Users\Mark Castro\AppData\Local\Programs\Python\Python311\Lib\site-packages\selenium\webdriver\remote\errorhandler.py", line 232, in check_response
+    raise exception_class(message, screen, stacktrace)
+selenium.common.exceptions.ElementNotInteractableException: Message: element not interactable
+  (Session info: chrome=147.0.7727.138)
+Stacktrace:
+        chromedriver!GetHandleVerifier [0x7ff68cbda8e5+14e45]
+        chromedriver!GetHandleVerifier [0x7ff68cbda950+14eb0]
+        chromedriver!(No symbol) [0x7ff68c94d4d6]
+        chromedriver!(No symbol) [0x7ff68c9a82a4]
+        chromedriver!(No symbol) [0x7ff68c99b1c6]
+        chromedriver!(No symbol) [0x7ff68c9d002a]
+        chromedriver!(No symbol) [0x7ff68c99aa46]
+        chromedriver!(No symbol) [0x7ff68c9f483b]
+        chromedriver!(No symbol) [0x7ff68c9990e8]
+        chromedriver!(No symbol) [0x7ff68c999fc3]
+        chromedriver!GetHandleVerifier [0x7ff68cef0149+32a6a9]
+        chromedriver!GetHandleVerifier [0x7ff68ceea715+324c75]
+        chromedriver!GetHandleVerifier [0x7ff68cf0c012+346572]
+        chromedriver!GetHandleVerifier [0x7ff68cbf7cb5+32215]
+        chromedriver!GetHandleVerifier [0x7ff68cc0087c+3addc]
+        chromedriver!GetHandleVerifier [0x7ff68cbe40e4+1e644]
+        chromedriver!GetHandleVerifier [0x7ff68cbe4296+1e7f6]
+        chromedriver!GetHandleVerifier [0x7ff68cbc8737+2c97]
+        KERNEL32!BaseThreadInitThunk [0x7ffe478553e0+10]
+        ntdll!RtlUserThreadStart [0x7ffe48da485b+2b]
+
+
+MarkCastro@DESKTOP-UP05FK7 MINGW64 /d/Projects/SIMBA-RUNBOOKS/SHFEMVD Runbook
