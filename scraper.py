@@ -113,7 +113,13 @@ def _build_driver(download_dir):
     opts = Options()
     if config.HEADLESS_MODE:
         opts.add_argument('--headless=new')
-        opts.add_argument('--disable-gpu')
+
+    # Disable GPU hardware acceleration unconditionally — Chrome's GPU process
+    # can crash (CommandBufferHelper::AllocateRingBuffer) when rendering many
+    # dynamic tables on heavy JS pages like SHFE. Software rendering is slower
+    # but stable.
+    opts.add_argument('--disable-gpu')
+    opts.add_argument('--disable-software-rasterizer')
 
     opts.add_argument('--no-sandbox')
     opts.add_argument('--disable-dev-shm-usage')
@@ -491,15 +497,21 @@ def _wait_for_tables_to_load(driver):
     max_iterations = 120  # safety cap
 
     for i in range(max_iterations):
-        # Scroll to the absolute bottom of the page
-        driver.execute_script(
-            'window.scrollTo(0, document.body.scrollHeight);'
-        )
-        time.sleep(config.SCROLL_POLL_INTERVAL)
+        try:
+            # Scroll to the absolute bottom of the page
+            driver.execute_script(
+                'window.scrollTo(0, document.body.scrollHeight);'
+            )
+            time.sleep(config.SCROLL_POLL_INTERVAL)
 
-        current_height = driver.execute_script(
-            'return document.body.scrollHeight;'
-        )
+            current_height = driver.execute_script(
+                'return document.body.scrollHeight;'
+            )
+        except Exception as exc:
+            raise RuntimeError(
+                f'Browser session lost during table-load scroll '
+                f'(iteration {i+1}): {exc}'
+            ) from exc
 
         if current_height == prev_height:
             stable_count += 1
